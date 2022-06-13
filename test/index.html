@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC Test</title>
+</head>
+
+<body>
+  <button id="call">Start</button>
+  <video id="local-video" muted autoplay></video>
+  <video id="remote-video" autoplay></video>
+
+  <script src="WebRTCPlus.js"></script>
+  <script src="socket.io.min.js"></script>
+  <script>
+    function getQueryParamByKey (paramName) {
+      var url = document.location.toString()
+      // 如果url中有特殊字符则需要进⾏⼀下解码
+      url = decodeURI(url)
+      var arrObj = url.split("?");
+      if (arrObj.length > 1) {
+        var arrPara = arrObj[1].split("&");
+        var arr;
+        for (var i = 0; i < arrPara.length; i++) {
+          arr = arrPara[i].split("=");
+          if (arr != null && arr[0] == paramName) {
+            return decodeURIComponent(arr[1]);
+          }
+        }
+        return "";
+      } else {
+        return "";
+      }
+    }
+
+    if (getQueryParamByKey('role') === 'provider') {
+      document.getElementById('call').innerText = 'Call'
+    }
+
+    window.onload = async function () {
+      const socket = io();
+
+      // client-side
+      socket.on("connect", () => {
+        console.log(socket.id); // x8WIv7-mJelg7on_ALbx
+      });
+
+      socket.on("disconnect", () => {
+        console.log(socket.id); // undefined
+      });
+
+      socket.on("signal", (data) => {
+        if (window.fromWS) window.fromWS(data)
+      });
+
+      let rtcConnect = 0
+
+      const webRTCPlus = new WebRTCPlus({
+        role: getQueryParamByKey('role') || "consumer",
+        iceServers: [
+          {
+            // TODO: 后续需要替换为服务器API传回
+            urls: "stun:106.53.211.2:3478",
+          },
+          {
+            urls: "turn:106.53.211.2:3478",
+            username: "lvpintrun",
+            credential: "J2hdi62kf2ud",
+          },
+        ],
+        signalingBindFunction: (data) => {
+          console.log("signalingBindFunction", data);
+          socket.emit('signal', data)
+        },
+      });
+
+      webRTCPlus.errorFunction = (data) => {
+        alert(data.msg);
+        // messageShow(data.msg);
+      }
+
+      webRTCPlus.connectStateChangeFunction = (status) => {
+        console.log("connectStateChange", status);
+        switch (status) {
+          case "new":
+          case "checking":
+            rtcConnect = 1;
+            break;
+          case "connected":
+            rtcConnect = 2;
+            break;
+          case "disconnected":
+            rtcConnect = 1;
+            break;
+          case "closed":
+            rtcConnect = 0;
+            break;
+          case "failed":
+            rtcConnect = 1;
+            break;
+          default:
+            rtcConnect = 1;
+            break;
+        }
+      }
+
+      webRTCPlus.remoteStreamUpdateFunction = async (streams) => {
+        const remoteVideo = document.getElementById('remote-video')
+        if (
+          streams &&
+          streams[0] &&
+          remoteVideo.srcObject !== streams[0]
+        ) {
+          remoteVideo.srcObject = streams[0];
+          await remoteVideo.play()
+          console.log("peerConnection received remote stream");
+        }
+      }
+
+      window.fromWS = (data) => {
+        console.log("fromWS", data);
+        webRTCPlus?.signal(data);
+      };
+
+      let constraints = {
+        audio: {
+          noiseSuppression: true, // 降噪
+          echoCancellation: true, // 回音消除
+        },
+        video: true,
+      }
+
+      try {
+        const localStream = await navigator.mediaDevices.getUserMedia(
+          constraints
+        );
+
+        const localVideo = document.getElementById('local-video')
+
+        localVideo.srcObject = localStream
+        await localVideo.play()
+
+        webRTCPlus.init([localStream])
+      } catch (err) {
+        console.log(err);
+        alert("获取摄像头或麦克风权限失败")
+      }
+
+      document.getElementById('call').onclick = function () {
+        if (getQueryParamByKey('role') === 'provider') {
+          webRTCPlus.answer('provider')
+        } else {
+          window.open(window.location.href + '?role=provider')
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>

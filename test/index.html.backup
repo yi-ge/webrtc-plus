@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC Test</title>
+</head>
+
+<body>
+  <button id="call">Start</button>
+  <video id="local-video" muted autoplay></video>
+  <video id="remote-video" autoplay></video>
+
+  <script src="WebRTCPlus.js"></script>
+  <script>
+    function getQueryParamByKey (paramName) {
+      var url = document.location.toString()
+      // 如果url中有特殊字符则需要进⾏⼀下解码
+      url = decodeURI(url)
+      var arrObj = url.split("?");
+      if (arrObj.length > 1) {
+        var arrPara = arrObj[1].split("&");
+        var arr;
+        for (var i = 0; i < arrPara.length; i++) {
+          arr = arrPara[i].split("=");
+          if (arr != null && arr[0] == paramName) {
+            return decodeURIComponent(arr[1]);
+          }
+        }
+        return "";
+      } else {
+        return "";
+      }
+    }
+
+    if (getQueryParamByKey('role') === 'consumer') {
+      document.getElementById('call').innerText = 'Call'
+    }
+
+    window.onload = async function () {
+      var ws = new WebSocket("ws://localhost:10000");
+      window.ws = ws
+
+      ws.onopen = function () {
+        // Web Socket 已连接上，使用 send() 方法发送数据
+        console.log("Web Socket 已连接");
+      };
+
+      ws.onmessage = function (evt) {
+        var received_msg = evt.data;
+        if (window.fromWS) window.fromWS(received_msg)
+      };
+
+      ws.onclose = function () {
+        // 关闭 websocket
+        console.log("Web Socket 连接已关闭...");
+      }
+
+      const webRTCPlus = new WebRTCPlus({
+        role: getQueryParamByKey('role') || "provider",
+        iceServers: [
+          {
+            // TODO: 后续需要替换为服务器API传回
+            urls: "stun:106.53.211.2:3478",
+          },
+          {
+            urls: "turn:106.53.211.2:3478",
+            username: "lvpintrun",
+            credential: "J2hdi62kf2ud",
+          },
+        ],
+        signalingBindFunction: (data) => {
+          console.log("signalingBindFunction", data);
+          ws.send(JSON.stringify(data));
+        },
+      });
+
+      webRTCPlus.errorFunction = (data) => {
+        alert(data.msg);
+        // messageShow(data.msg);
+      }
+
+      webRTCPlus.connectStateChangeFunction = (status) => {
+        console.log("connectStateChange", status);
+        switch (status) {
+          case "new":
+          case "checking":
+            rtcConnect.value = 1;
+            break;
+          case "connected":
+            rtcConnect.value = 2;
+            break;
+          case "disconnected":
+            rtcConnect.value = 1;
+            break;
+          case "closed":
+            rtcConnect.value = 0;
+            break;
+          case "failed":
+            rtcConnect.value = 1;
+            break;
+          default:
+            rtcConnect.value = 1;
+            break;
+        }
+      }
+
+      webRTCPlus.remoteStreamUpdateFunction = async (streams) => {
+        const remoteVideo = document.getElementById('remote-video')
+        if (
+          streams &&
+          streams[0] &&
+          remoteVideo.srcObject !== streams[0]
+        ) {
+          remoteVideo.srcObject = streams[0];
+          await remoteVideo.play()
+          console.log("peerConnection received remote stream");
+        }
+      }
+
+      window.fromWS = (data) => {
+        console.log("fromWS", data);
+        webRTCPlus?.signal(JSON.parse(data));
+      };
+
+      let constraints = {
+        audio: {
+          noiseSuppression: true, // 降噪
+          echoCancellation: true, // 回音消除
+        },
+        video: true,
+      }
+
+      try {
+        const localStream = await navigator.mediaDevices.getUserMedia(
+          constraints
+        );
+
+        const localVideo = document.getElementById('local-video')
+
+        localVideo.srcObject = localStream
+        await localVideo.play()
+
+        webRTCPlus.init([localStream])
+        ws.send(JSON.stringify("ready"));
+      } catch (err) {
+        console.log(err);
+        alert("获取摄像头或麦克风权限失败")
+      }
+
+      document.getElementById('call').onclick = function () {
+        if (getQueryParamByKey('role') === 'consumer') {
+          webRTCPlus.answer('consumer')
+        } else {
+          window.open(window.location.href + '?role=consumer')
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "esnext", "es2015"],
+    "allowJs": false,
+    "module": "es2015",
+    "declaration": true,
+    "declarationDir": "dist",
+    "skipLibCheck": false,
+    "sourceMap": false,
+    "strict": true,
+    "noEmit": false,
+    "esModuleInterop": true,
+    "removeComments": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "newLine": "CRLF",
+    "suppressImplicitAnyIndexErrors": false
+  },
+  "exclude": ["dist", "node_modules", "test", "webpack.config.js"]
+}
