@@ -1,13 +1,13 @@
 {
   "name": "webrtc-plus",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "WebRTC client library.",
   "main": "dist/WebRTCPlus.js",
   "types": "dist/WebRTCPlus.d.js",
   "author": "yi-ge <a@wyr.me>",
   "license": "MIT",
   "keywords": [
-    "webrtc",
+    "webrtc"
   ],
   "repository": {
     "type": "git",
