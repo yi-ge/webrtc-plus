@@ -2,7 +2,8 @@ import { processSdp } from './processSdp'
 import adapter from 'webrtc-adapter'
 
 type WebRTCPlusOptions = {
-  serverProtocol?: string
+  serverProtocol?: string,
+  iceTransportPolicy?: string,
   iceServers?: RTCIceServer[]
   bidirection?: boolean,
   role: string,
@@ -171,7 +172,7 @@ export default class WebRTCPlus {
     }
 
     this.peerConnection = new RTCPeerConnection({
-      iceTransportPolicy: "all",
+      iceTransportPolicy: (this.options.iceTransportPolicy || 'all') as RTCIceTransportPolicy,
       iceServers: this.options.iceServers,
       iceCandidatePoolSize: 0,
       // @ts-ignore

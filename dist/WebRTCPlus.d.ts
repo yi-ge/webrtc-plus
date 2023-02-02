@@ -1,5 +1,6 @@
-declare type WebRTCPlusOptions = {
+type WebRTCPlusOptions = {
     serverProtocol?: string;
+    iceTransportPolicy?: string;
     iceServers?: RTCIceServer[];
     bidirection?: boolean;
     role: string;
