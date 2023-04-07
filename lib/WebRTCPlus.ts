@@ -252,7 +252,7 @@ export default class WebRTCPlus {
     }
 
     this.peerConnection.ontrack = e => {
-      if (this.remoteStreamUpdateFunction) this.remoteStreamUpdateFunction(e.streams)
+      if (this.remoteStreamUpdateFunction) this.remoteStreamUpdateFunction(e.streams, e)
     }
 
     return this.peerConnection
