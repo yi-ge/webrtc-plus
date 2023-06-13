@@ -131,20 +131,21 @@ export default class WebRTCPlus {
           )
         ) {
           console.log('发现掉线的客户端')
-          if (this.peerConnection) {
-            try {
-              for (const n in this.senderList) {
-                this.peerConnection.removeTrack(this.senderList[n])
-              }
-              this.senderList = []
-              this.peerConnection.close()
-              this.peerConnection = null
-            } catch (err) {
-              console.log(err)
-            }
-          }
-          console.log('尝试重连RTC被拒绝')
-          return
+          console.log('尝试重连')
+          // if (this.peerConnection) {
+          //   try {
+          //     for (const n in this.senderList) {
+          //       this.peerConnection.removeTrack(this.senderList[n])
+          //     }
+          //     this.senderList = []
+          //     this.peerConnection.close()
+          //     this.peerConnection = null
+          //   } catch (err) {
+          //     console.log(err)
+          //   }
+          // }
+          // console.log('尝试重连RTC被拒绝')
+          // return
           // setTimeout(() => {
           //   this.call(localStream, data.roomName, () => {
           //     console.log('正在重连中音频')
