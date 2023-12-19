@@ -58,136 +58,135 @@ export default class WebRTCPlus {
       this.options.signalingBindFunction(data)
   }
 
-  async signal(data: any) {
-    if (data.action === 'offer') {
-      if (this.peerConnection && data.role !== this.options.role) {
-        // 检查是否已经有远程描述，并且连接状态为'stable'
-        if (
-          this.peerConnection.remoteDescription &&
-          this.peerConnection.signalingState === 'stable'
-        ) {
-          console.log('远程描述已设置，连接状态稳定，无需重新设置')
-          return
-        }
+  /**
+   * 处理收到的信号。
+   * @param data - 接收到的信号数据
+   */
+  async signal(data: any): Promise<void> {
+    if (!this.peerConnection || data.role === this.options.role) {
+      return
+    }
 
-        await this.peerConnection.setRemoteDescription(
-          new RTCSessionDescription(JSON.parse(data.offer))
-        )
+    try {
+      switch (data.action) {
+        case 'offer':
+        case 'answer':
+          await this.handleOfferAnswer(data)
+          break
+        case 'candidate':
+          await this.handleCandidate(data)
+          break
+        case 'close':
+          this.close()
+          break
+        case 'connect':
+          this.handleReconnect(data)
+          break
+        default:
+          console.log(`未知的信号动作: ${data.action}`)
+      }
+    } catch (err) {
+      console.error('处理信号时出错:', err)
+    }
+  }
+
+  private async handleOfferAnswer(data: {
+    action: string
+    offer?: string
+    answer?: string
+  }): Promise<void> {
+    // @ts-ignore
+    const remoteDesc = new RTCSessionDescription(JSON.parse(data[data.action]))
+    if (
+      this.peerConnection &&
+      (this.peerConnection.signalingState === 'stable' ||
+        this.peerConnection.signalingState === 'have-local-offer')
+    ) {
+      await this.peerConnection.setRemoteDescription(remoteDesc)
+      this.readyAddIceCandidate = true
+
+      if (data.action === 'offer') {
         const answer = await this.peerConnection.createAnswer()
-        try {
-          await this.peerConnection.setLocalDescription(answer)
-        } catch (err: any) {
-          if (err && err.toString().includes('state: stable')) {
-            console.log('重新发起回复通道前已被连接')
-          } else {
-            console.log(err)
-          }
-          return
-        }
-
-        this.readyAddIceCandidate = true
-        while (this.candidateQueue.length > 0) {
-          // console.log('Queue job: addIceCandidate')
-          await this.peerConnection
-            .addIceCandidate(this.candidateQueue.shift())
-            .catch((e) => {
-              console.log(e)
-            })
-        }
-
+        await this.peerConnection.setLocalDescription(answer)
         this.sendSignal({
           action: 'answer',
-          roomName: this.roomName,
+          roomName: this.roomName!,
           answer: JSON.stringify(answer),
           role: this.options.role,
         })
       }
-    } else if (data.action === 'answer') {
-      if (this.peerConnection && data.role !== this.options.role) {
-        try {
-          // 检查是否已经有远程描述，并且连接状态为'stable'
-          if (
-            this.peerConnection.remoteDescription &&
-            this.peerConnection.signalingState === 'stable'
-          ) {
-            console.log('远程描述已设置，连接状态稳定，无需重新设置')
-            return
-          }
+      this.processIceCandidateQueue()
+    }
+  }
 
-          await this.peerConnection.setRemoteDescription(
-            new RTCSessionDescription(JSON.parse(data.answer))
-          )
-          // console.log('设置setRemoteDescription')
-          this.readyAddIceCandidate = true
-          while (this.candidateQueue.length > 0) {
-            // console.log('Queue job: addIceCandidate')
-            await this.peerConnection
-              .addIceCandidate(this.candidateQueue.shift())
-              .catch((e) => {
-                console.log(e)
-              })
-          }
-        } catch (err: any) {
-          if (err && err.toString().includes('state: stable')) {
-            console.log('重新发起通道前已被连接')
-          } else {
-            console.log(err)
-          }
-          return
-        }
-      }
-    } else if (data.action === 'candidate') {
-      if (this.peerConnection && data.role !== this.options.role) {
-        if (this.readyAddIceCandidate) {
-          // console.log('addIceCandidate')
-          await this.peerConnection
-            .addIceCandidate(new RTCIceCandidate(data.candidate))
-            .catch((e) => {
-              console.log(e)
-            })
-        } else {
-          // console.log('Add iceCandidate to queue')
-          this.candidateQueue.push(new RTCIceCandidate(data.candidate))
-        }
-      }
-    } else if (data.action === 'close') {
-      if (this.peerConnection && data.role !== this.options.role) {
+  private async handleCandidate(data: {
+    candidate: RTCIceCandidateInit
+    role: string
+  }): Promise<void> {
+    if (!this.peerConnection) return
+
+    const candidate = new RTCIceCandidate(data.candidate)
+    if (this.readyAddIceCandidate) {
+      await this.peerConnection.addIceCandidate(candidate)
+    } else {
+      this.candidateQueue.push(data.candidate)
+    }
+  }
+
+  private async handleReconnect(data: any): Promise<void> {
+    // 确认当前的peerConnection实例存在且房间名匹配
+    if (!this.peerConnection || this.roomName !== data.roomName) {
+      console.log('重连条件不满足，无法执行重连')
+      return
+    }
+
+    // 检查连接状态，只有在某些状态下才进行重连
+    if (
+      ['disconnected', 'failed', 'closed'].includes(
+        this.peerConnection.connectionState
+      )
+    ) {
+      console.log('正在尝试重连...')
+
+      try {
+        // 关闭现有的peerConnection实例
         this.close()
-      }
-    } else if (data.action === 'connect') {
-      if (this.peerConnection && data.role !== this.options.role) {
-        if (
-          this.roomName === data.roomName &&
-          (this.peerConnection.iceConnectionState === 'disconnected' ||
-            this.peerConnection.connectionState === 'disconnected' ||
-            this.peerConnection.iceConnectionState === 'new' ||
-            this.peerConnection.connectionState === 'new')
-        ) {
-          console.log('发现掉线的客户端')
-          console.log('尝试重连')
-          // if (this.peerConnection) {
-          //   try {
-          //     for (const n in this.senderList) {
-          //       this.peerConnection.removeTrack(this.senderList[n])
-          //     }
-          //     this.senderList = []
-          //     this.peerConnection.close()
-          //     this.peerConnection = null
-          //   } catch (err) {
-          //     console.log(err)
-          //   }
-          // }
-          // console.log('尝试重连RTC被拒绝')
-          // return
-          // setTimeout(() => {
-          //   this.call(localStream, data.roomName, () => {
-          //     console.log('正在重连中音频')
-          //   })
-          // }, 2000)
-        }
 
-        this.offer(data.roomName)
+        // 重新初始化peerConnection
+        this.init(this.localStream)
+
+        // 根据角色发起新的offer或answer
+        if (this.options.role === 'provider' && this.roomName) {
+          // 如果是发起方，创建新的offer
+          await this.offer(this.roomName)
+        } else {
+          // 如果是接收方，发送重连请求
+          this.sendSignal({
+            action: 'reconnect',
+            roomName: this.roomName,
+            role: this.options.role,
+          })
+        }
+      } catch (error) {
+        console.error('重连过程中出现错误:', error)
+        if (this.errorFunction)
+          this.errorFunction({ code: -1, msg: '重连失败' })
       }
+    } else {
+      console.log(
+        '当前连接状态不需要重连:',
+        this.peerConnection.connectionState
+      )
+    }
+  }
+
+  private processIceCandidateQueue(): void {
+    if (!this.peerConnection) return
+
+    while (this.candidateQueue.length > 0) {
+      this.peerConnection
+        .addIceCandidate(this.candidateQueue.shift()!)
+        .catch((e) => console.error('添加ICE候选时出错:', e))
     }
   }
 
@@ -308,7 +307,6 @@ export default class WebRTCPlus {
 
   init(localStream?: MediaStream[]): void {
     this.peerConnection = this.iniRTCPeerConnection()
-    this.readyAddIceCandidate = false
 
     if (localStream) {
       this.localStream = localStream
