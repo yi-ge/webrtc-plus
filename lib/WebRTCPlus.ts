@@ -61,15 +61,6 @@ export default class WebRTCPlus {
   async signal(data: any) {
     if (data.action === 'offer') {
       if (this.peerConnection && data.role !== this.options.role) {
-        // 检查是否已经有远程描述，并且连接状态为'stable'
-        if (
-          this.peerConnection.remoteDescription &&
-          this.peerConnection.signalingState === 'stable'
-        ) {
-          console.log('远程描述已设置，连接状态稳定，无需重新设置')
-          return
-        }
-
         await this.peerConnection.setRemoteDescription(
           new RTCSessionDescription(JSON.parse(data.offer))
         )
@@ -106,17 +97,17 @@ export default class WebRTCPlus {
       if (this.peerConnection && data.role !== this.options.role) {
         try {
           // 检查是否已经有远程描述，并且连接状态为'stable'
-          if (
-            this.peerConnection.remoteDescription &&
-            this.peerConnection.signalingState === 'stable'
-          ) {
-            console.log('远程描述已设置，连接状态稳定，无需重新设置')
-            return
-          }
-
+          // if (
+          //   this.peerConnection.remoteDescription &&
+          //   this.peerConnection.signalingState === 'stable'
+          // ) {
+          //   console.log('远程描述已设置，连接状态稳定，无需重新设置')
+          // } else {
           await this.peerConnection.setRemoteDescription(
             new RTCSessionDescription(JSON.parse(data.answer))
           )
+          // }
+
           // console.log('设置setRemoteDescription')
           this.readyAddIceCandidate = true
           while (this.candidateQueue.length > 0) {
@@ -129,6 +120,7 @@ export default class WebRTCPlus {
           }
         } catch (err: any) {
           if (err && err.toString().includes('state: stable')) {
+            console.log(err)
             console.log('重新发起通道前已被连接')
           } else {
             console.log(err)
@@ -209,40 +201,40 @@ export default class WebRTCPlus {
       iceTransportPolicy: (this.options.iceTransportPolicy ||
         'all') as RTCIceTransportPolicy,
       iceServers: this.options.iceServers,
-      iceCandidatePoolSize: 0,
+      // iceCandidatePoolSize: 0,
       // @ts-ignore
-      optionalArgument: {
-        optional: [
-          {
-            DtlsSrtpKeyAgreement: true,
-          },
-          {
-            googImprovedWifiBwe: true,
-          },
-          {
-            googScreencastMinBitrate: 300,
-          },
-          {
-            googIPv6: true,
-          },
-          {
-            googDscp: true,
-          },
-          {
-            googCpuUnderuseThreshold: 55,
-          },
-          {
-            googCpuOveruseThreshold: 85,
-          },
-          {
-            googSuspendBelowMinBitrate: true,
-          },
-          {
-            googCpuOveruseDetection: true,
-          },
-        ],
-        mandatory: {},
-      },
+      // optionalArgument: {
+      //   optional: [
+      //     {
+      //       DtlsSrtpKeyAgreement: true,
+      //     },
+      //     {
+      //       googImprovedWifiBwe: true,
+      //     },
+      //     {
+      //       googScreencastMinBitrate: 300,
+      //     },
+      //     {
+      //       googIPv6: true,
+      //     },
+      //     {
+      //       googDscp: true,
+      //     },
+      //     {
+      //       googCpuUnderuseThreshold: 55,
+      //     },
+      //     {
+      //       googCpuOveruseThreshold: 85,
+      //     },
+      //     {
+      //       googSuspendBelowMinBitrate: true,
+      //     },
+      //     {
+      //       googCpuOveruseDetection: true,
+      //     },
+      //   ],
+      //   mandatory: {},
+      // },
       candidates: {
         host: true,
         stun: true,
@@ -362,7 +354,11 @@ export default class WebRTCPlus {
       offerToReceiveVideo: this.options.bidirection,
     })
 
-    if (offer.sdp) {
+    if (
+      offer.sdp &&
+      ((this.options.codecs && this.options.codecs.video) ||
+        (this.options.codecs && this.options.codecs.audio))
+    ) {
       offer.sdp = processSdp(offer.sdp, {
         video: (this.options.codecs && this.options.codecs.video) || 'VP9',
         audio: (this.options.codecs && this.options.codecs.audio) || 'opus',
@@ -377,6 +373,7 @@ export default class WebRTCPlus {
       offer: JSON.stringify(offer),
       role: this.options.role,
     })
+    console.log('发送offer' + new Date().getTime())
   }
 
   async answer(roomName: string) {

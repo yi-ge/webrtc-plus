@@ -1,6 +1,6 @@
 {
   "name": "webrtc-plus",
-  "version": "0.1.7",
+  "version": "0.1.12",
   "description": "WebRTC client library.",
   "main": "dist/WebRTCPlus.js",
   "types": "dist/WebRTCPlus.d.js",
